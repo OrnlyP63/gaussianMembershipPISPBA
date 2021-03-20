@@ -17,64 +17,18 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+from sklearn.cluster import KMeans
 from scipy import stats
 ```
 
 ```{python}
-#np.random.seed(2021)
+np.random.seed(200)
 ```
 
 ```{python}
 def gaussmf(x, mean, sigma):
 
     return np.exp(-((x - mean)**2.) / (2 * sigma**2.))
-```
-
-```{python}
-df = pd.read_csv('transfusion.csv')
-```
-
-```{python}
-df = df[(np.abs(stats.zscore(df)) < 3).all(axis=1)]
-```
-
-```{python}
-df.head(10)
-```
-
-```{python}
-df_x = df.drop(['whether he/she donated blood in March 2007'], axis=1)
-```
-
-```{python}
-dict = {}
-for k in df_x.keys():
-    mean = df_x.mean()[k]
-    sigma = df_x.std()[k]
-    x = df_x[k]
-    small = gaussmf(x, mean - sigma, sigma)
-    medium = gaussmf(x, mean, sigma)
-    large = gaussmf(x, mean + sigma, sigma)
-
-    dict[k+'_s'] = small
-    dict[k+'_m'] = medium
-    dict[k+'_l'] = large
-```
-
-```{python}
-X = pd.DataFrame(dict)
-```
-
-```{python}
-X.head(10)
-```
-
-```{python}
-y = pd.get_dummies(df['whether he/she donated blood in March 2007'])
-```
-
-```{python}
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
 ```
 
 ```{python}
@@ -93,6 +47,66 @@ def thetan(x0,x1,n):
 ```
 
 ```{python}
+df = pd.read_csv('transfusion.csv')
+```
+
+```{python}
+df = df[(np.abs(stats.zscore(df)) < 3).all(axis=1)]
+```
+
+```{python}
+df_x = df.drop(['whether he/she donated blood in March 2007'], axis=1)
+```
+
+```{python}
+Dict = {}
+for k in df_x.keys():
+    t = df[k]
+    
+    x = np.array(t.to_list()).reshape(-1, 1)
+    kmeans = KMeans(n_clusters=3, random_state=0).fit(x)
+    label = kmeans.labels_
+    
+    x_0 = [i[-1] for i, j in zip(x,label) if j==0]
+    x_1 = [i[-1] for i, j in zip(x,label) if j==1]
+    x_2 = [i[-1] for i, j in zip(x,label) if j==2]
+    
+    std_x_0 = np.std(x_0)
+    std_x_1 = np.std(x_1)
+    std_x_2 = np.std(x_2)
+    
+    center = kmeans.cluster_centers_
+    
+    mean_0 = center[0][0]
+    mean_1 = center[1][0]
+    mean_2 = center[2][0]
+    
+    type_0 = gaussmf(t, mean_0, std_x_0)
+    type_1 = gaussmf(t, mean_1, std_x_1)
+    type_2 = gaussmf(t, mean_2, std_x_2)
+
+    Dict[k+'_t0'] = type_0
+    Dict[k+'_t1'] = type_1
+    Dict[k+'_t2'] = type_2
+```
+
+```{python}
+X = pd.DataFrame(Dict)
+```
+
+```{python}
+X.head(10)
+```
+
+```{python}
+y = pd.get_dummies(df['whether he/she donated blood in March 2007'])
+```
+
+```{python}
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+```
+
+```{python}
 H = X_train
 itrs = 500
 L = 1. / np.max(np.linalg.eigvals(np.dot(H.T, H))).real
@@ -102,7 +116,7 @@ x0 = np.zeros((m,n))
 x1 = np.zeros((m,n))
 L1 = 2*L*np.dot(H.T, H)
 L2 = 2*L*np.dot(H.T, y_train)
-lam = 1e-2
+lam=1e-2
 acc_rate_validation = []
 acc_rate_train = []
 for i in range(1,itrs+1):
@@ -140,7 +154,6 @@ plt.ylabel('accuracy')
 plt.plot(range(1,itrs+1), [x[1] for x in acc_rate_validation], label='validation')
 plt.plot(range(1,itrs+1), [x[1] for x in acc_rate_train], label='train')
 plt.legend()
-plt.savefig('acc.png')
 ```
 
 ```{python}
